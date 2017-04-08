@@ -1,67 +1,52 @@
 #include <stdio.h>
-#include <signal.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <alchemy/task.h>
-#include <alchemy/timer.h>
-#include <math.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_odeiv2.h>
 
+#define ORDER 3
 
-#define CLOCK_RES 1e-9 //Clock resolution is 1 ns by default
-#define LOOP_PERIOD 1e7 //Expressed in ticks
-//RTIME period = 1000000000;
-RT_TASK loop_task;
-
-void loop_task_proc(void *arg)
+int sys_fun(double t, const double y[], double f[], void *params)
 {
-  RT_TASK *curtask;
-  RT_TASK_INFO curtaskinfo;
-  int iret = 0;
+    (void) t; //Avoid unused parameter warning
+    double sigma = 10.0, rho = 28.0, beta = 8.0/3.0;
 
-  RTIME tstart, now;
+    f[0] = sigma*(y[1] - y[0]);
+    f[1] = y[0]*(rho - y[2]) - y[1];
+    f[2] = y[0]*y[1] - beta*y[2];
 
-  curtask = rt_task_self();
-  rt_task_inquire(curtask, &curtaskinfo);
-  int ctr = 0;
-
-  //Print the info
-  printf("Starting task %s with period of 10 ms ....\n", curtaskinfo.name);
-
-  //Make the task periodic with a specified loop period
-  rt_task_set_periodic(NULL, TM_NOW, LOOP_PERIOD);
-
-  tstart = rt_timer_read();
-
-  //Start the task loop
-  while(ctr < 100){
-    printf("Loop count: %d, Loop time: %.5f ms\n", ctr, (rt_timer_read() - tstart)/1000000.0);
-    ctr++;
-    rt_task_wait_period(NULL);
-  }
+    return GSL_SUCCESS;
 }
+
 
 int main(int argc, char **argv)
 {
-  char str[20];
-  //Perform auto-init of rt_print buffers if the task does not do so
-  //rt_print_auto_init(1);
+    const gsl_odeiv2_step_type *T = gsl_odeiv2_step_rkf45;
 
-  //Lock the memory to avoid memory swapping for this program
-  mlockall(MCL_CURRENT | MCL_FUTURE);
-    
-  printf("Starting cyclic task...\n");
+    gsl_odeiv2_step *s = gsl_odeiv2_step_alloc(T, ORDER);
+    gsl_odeiv2_control *c = gsl_odeiv2_control_y_new(1e-3, 0.0);
+    gsl_odeiv2_evolve *e = gsl_odeiv2_evolve_alloc(ORDER);
 
-  //Create the real time task
-  sprintf(str, "cyclic_task");
-  rt_task_create(&loop_task, str, 0, 50, 0);
+    gsl_odeiv2_system lorenz_system = {sys_fun, NULL, ORDER, NULL};
 
-  //Since task starts in suspended mode, start task
-  rt_task_start(&loop_task, &loop_task_proc, 0);
+    double t = 0.0, t1 = 100;
+    double h = 1e-6;
+    double y[3] = {1.0, 1.0, 1.0}; //Initial conditions
 
-  //Wait until the real-time task is done
-  //rt_task_join(&loop_task);
+    while(t < t1)
+    {
+	int status = gsl_odeiv2_evolve_apply(e, c, s, &lorenz_system, &t, t1, &h, y);
 
-  pause();
+	if(status != GSL_SUCCESS) break;
 
-  return 0;
+	printf("%.5e %.5e %.5e %.5e\n", t, y[0], y[1], y[2]);
+    }
+
+    gsl_odeiv2_evolve_free (e);
+    gsl_odeiv2_control_free (c);
+    gsl_odeiv2_step_free (s);
+
+    return 0;   
+
 }
+
+    
