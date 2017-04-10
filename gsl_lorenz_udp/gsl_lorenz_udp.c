@@ -68,7 +68,8 @@ void main_task_proc(void *args)
 	//printf("%3.3f, %3.3f, %3.3f |Integrator: t=%.3f, RTClock: t=%.3f\n", 
 	//       y[0], y[1], y[2], t, rt_timer_read()/1e9);
 	//Send the data over the socket
-	sprintf(msg, "%3.3f %3.3f %3.3f\n", y[0], y[1], y[2]);
+	//sprintf(msg, "%3.3f %3.3f %3.3f\n", y[0], y[1], y[2]);
+	sprintf(msg, "0:%.3f\n1:%.3f\n2:%.3f\n", y[0], y[1], y[2]);
 	sendto(sockfd, msg, strlen(msg), 0, &server_addr, sizeof(server_addr));
 	//Wait till end of the task period.
 	rt_task_wait_period(NULL);
