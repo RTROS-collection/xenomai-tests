@@ -55,11 +55,7 @@
 RT_TASK main_task;            //The main real-time task
 
 static int can_fd = -1;                //The can socket file descriptor
-static struct sockaddr_can l_addr;     //The can address for the left wheel
-static struct sockaddr_can r_addr;     //The can address for the right wheel
 static struct sockaddr_can platform_addr; //The CAN address of the interface
-static socklen_t lenl = sizeof(l_addr);
-static socklen_t lenr = sizeof(r_addr);
 static struct can_ifreq ifr;                //Holds more info about the can bus
 struct can_bittime *bittime;
 struct can_frame frame;
@@ -93,6 +89,9 @@ static void main_task_proc(void *args)
     for(i=0; i<8; i++)
 	frame.data[i] = i;
 
+    //Set all wheel velocities to zero
+    set_velocities(0, 0, 0, 0);
+
     //Make the task periodic
     rt_task_set_periodic(NULL, TM_NOW, LOOP_PERIOD);   
 
@@ -102,7 +101,7 @@ static void main_task_proc(void *args)
 	loop_ctr++;
 	printf("Sending CAN Frame...\n");
 	
-	read_sensors(READ_WITH_REQ);
+	read_sensors(READ_WITHOUT_REQ);
 
 	//Do control and get desired velocities
 
